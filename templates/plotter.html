@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Equation Plotter - Mobile Optimized</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      background-color: #f5f5f5;
+      color: #1f1f1f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 10px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    body.dark {
+      background-color: #1a1a1a;
+      color: #e5e5e5;
+    }
+
+    .sidebar {
+      width: 200px;
+      background-color: #1f2937;
+      color: white;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      padding-top: 20px;
+      transform: translateX(-200px);
+      transition: transform 0.3s ease;
+      z-index: 1000;
+    }
+
+    .sidebar.active {
+      transform: translateX(0);
+    }
+
+    .sidebar a {
+      padding: 10px 20px;
+      display: block;
+      color: white;
+      text-decoration: none;
+      font-size: 18px;
+    }
+
+    .sidebar a:hover {
+      background-color: #374151;
+    }
+
+    .main-content {
+      width: 100%;
+      max-width: 600px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-left: 0;
+      transition: margin-left 0.3s ease;
+    }
+
+    .main-content.shifted {
+      margin-left: 200px;
+    }
+
+    .menu-toggle {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      cursor: pointer;
+      z-index: 1100;
+    }
+
+    .menu-toggle svg {
+      width: 24px;
+      height: 24px;
+      color: #666;
+    }
+
+    body.dark .menu-toggle svg {
+      color: #aaa;
+    }
+
+    .header {
+      text-align: center;
+      padding: 15px 0;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: inherit;
+    }
+
+    .header p {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    body.dark .header p {
+      color: #aaa;
+    }
+
+    .input-area {
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      position: sticky;
+      bottom: 10px;
+      margin-top: auto;
+      z-index: 10;
+    }
+
+    body.dark .input-area {
+      background: #2a2a2a;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    input {
+      flex: 1;
+      padding: 10px;
+      font-size: 14px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: inherit;
+      outline: none;
+    }
+
+    body.dark input {
+      color: #e5e5e5;
+    }
+
+    button {
+      padding: 10px 16px;
+      font-size: 14px;
+      border-radius: 6px;
+      background-color: #10a37f;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s ease, transform 0.1s ease;
+      touch-action: manipulation;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button:hover {
+      background-color: #0d8e6e;
+    }
+
+    button:active {
+      transform: scale(0.95);
+    }
+
+    button.loading::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 2px solid white;
+      border-top: 2px solid transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    @keyframes spin {
+      0% { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    canvas {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #e0e0e0;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+      padding: 8px;
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    body.dark canvas {
+      background: #2a2a2a;
+      border: 1px solid #444;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 10px;
+      background: #fff;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+      transition: background-color 0.3s ease, transform 0.1s ease;
+    }
+
+    body.dark .theme-toggle {
+      background: #2a2a2a;
+    }
+
+    .theme-toggle:active {
+      transform: scale(0.9);
+    }
+
+    .theme-toggle::before {
+      content: '🌙';
+      font-size: 18px;
+    }
+
+    body.dark .theme-toggle::before {
+      content: '☀️';
+    }
+
+    .error {
+      color: #d32f2f;
+      font-size: 12px;
+      text-align: center;
+      margin-top: 5px;
+      display: none;
+    }
+
+    body.dark .error {
+      color: #ef5350;
+    }
+
+    .table-container {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #e0e0e0;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+      padding: 10px;
+      overflow-x: auto;
+    }
+
+    body.dark .table-container {
+      background: #2a2a2a;
+      border: 1px solid #444;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      color: inherit;
+    }
+
+    th, td {
+      padding: 8px;
+      text-align: center;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    body.dark th, body.dark td {
+      border-bottom: 1px solid #444;
+    }
+
+    th {
+      font-weight: 600;
+      background: #f9f9f9;
+    }
+
+    body.dark th {
+      background: #333;
+    }
+
+    .about-container {
+      display: none;
+      flex-direction: column;
+      padding: 15px;
+    }
+
+    .about-container.active {
+      display: flex;
+    }
+
+    .about-container h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: inherit;
+    }
+
+    .about-container p {
+      font-size: 14px;
+      color: #666;
+    }
+
+    body.dark .about-container p {
+      color: #aaa;
+    }
+
+    .about-container a {
+      color: #10a37f;
+      text-decoration: none;
+    }
+
+    body.dark .about-container a {
+      color: #60a5fa;
+    }
+
+    @media (max-width: 400px) {
+      .header h1 {
+        font-size: 18px;
+      }
+      .header p {
+        font-size: 11px;
+      }
+      input, button {
+        font-size: 13px;
+      }
+      .input-area {
+        flex-direction: column;
+        gap: 6px;
+      }
+      button {
+        width: 100%;
+      }
+      canvas {
+        padding: 6px;
+      }
+      table {
+        font-size: 12px;
+      }
+      th, td {
+        padding: 6px;
+      }
+      .sidebar {
+        width: 200px;
+      }
+      .main-content.shifted {
+        margin-left: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Menu Toggle -->
+  <div class="menu-toggle" id="menu-toggle" role="button" aria-label="Toggle sidebar">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+    </svg>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <a href="/" data-section="chat">Home</a>
+    <a href="#" data-section="plotter">Graph</a>
+    <a href="#" data-section="about">About Us</a>
+  </div>
+
+  <!-- Theme Toggle -->
+  <div class="theme-toggle" onclick="toggleTheme()" role="button" aria-label="Toggle theme"></div>
+
+  <!-- Main Content -->
+  <div class="main-content" id="main-content">
+    <!-- Plotter Section -->
+    <div class="plotter-container active" id="plotter-container">
+      <div class="header">
+        <h1>🧮 Equation Plotter</h1>
+        <p>Type an expression in <strong>x</strong> (like <code>x^2</code>, <code>sin(x)</code>, <code>log(x)</code>)</p>
+      </div>
+      <canvas id="myChart"></canvas>
+      <div class="table-container">
+        <table id="sampleTable">
+          <thead>
+            <tr>
+              <th>x</th>
+              <th>y</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="input-area">
+        <input id="equation" type="text" placeholder="e.g., x^2 or sin(x)" value="2*x" />
+        <button id="plotBtn" onclick="plotGraph()">Plot</button>
+      </div>
+      <div id="errorMsg" class="error"></div>
+    </div>
+
+    <!-- About Us Section -->
+    <div class="about-container" id="about-container">
+      <h2>About Us</h2>
+      <p>
+        We are the team behind AI-Doctor, a medical chatbot designed to assist users in understanding medical conditions through text and image queries. Our mission is to provide accessible and reliable medical information using advanced AI technology.
+      </p>
+      <p class="mt-2">
+        Contact us at: <a href="mailto:support@ai-doctor.com">support@ai-doctor.com</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    let chart;
+
+    function parseMath(expr) {
+      return expr
+        .replace(/(\d+)([a-zA-Z])/g, '$1*$2')
+        .replace(/([a-zA-Z])(\d+)/g, '$1*$2')
+        .replace(/\^/g, '**')
+        .replace(/sin/gi, 'Math.sin')
+        .replace(/cos/gi, 'Math.cos')
+        .replace(/tan/gi, 'Math.tan')
+        .replace(/log/gi, 'Math.log')
+        .replace(/exp/gi, 'Math.exp')
+        .replace(/sqrt/gi, 'Math.sqrt');
+    }
+
+    function validateExpression(expr) {
+      if (!expr.includes('x')) return 'Expression must include variable x';
+      if (/[^0-9x+\-*/^().\s()sin|cos|tan|log|exp|sqrt]/.test(expr)) {
+        return 'Invalid characters in expression';
+      }
+      return null;
+    }
+
+    function updateTable(expr, samplePoints) {
+      const tableBody = document.getElementById('tableBody');
+      tableBody.innerHTML = '';
+
+      samplePoints.forEach(x => {
+        try {
+          const y = eval(parseMath(expr));
+          const row = document.createElement('tr');
+          row.innerHTML = `<td>${x.toFixed(2)}</td><td>${isFinite(y) ? y.toFixed(2) : 'undefined'}</td>`;
+          tableBody.appendChild(row);
+        } catch (e) {
+          const row = document.createElement('tr');
+          row.innerHTML = `<td>${x.toFixed(2)}</td><td>error</td>`;
+          tableBody.appendChild(row);
+        }
+      });
+    }
+
+    function plotGraph() {
+      const btn = document.getElementById('plotBtn');
+      const errorMsg = document.getElementById('errorMsg');
+      const exprInput = document.getElementById('equation').value.trim();
+      
+      const validationError = validateExpression(exprInput);
+      if (validationError) {
+        errorMsg.textContent = validationError;
+        errorMsg.style.display = 'block';
+        return;
+      }
+      errorMsg.style.display = 'none';
+
+      btn.classList.add('loading');
+      btn.disabled = true;
+
+      setTimeout(() => {
+        const expr = parseMath(exprInput);
+        const xValues = [];
+        const yValues = [];
+
+        for (let x = -10; x <= 10; x += 0.5) {
+          try {
+            const y = eval(expr);
+            xValues.push(x);
+            yValues.push(isFinite(y) ? y : null);
+          } catch (e) {
+            errorMsg.textContent = 'Invalid expression. Check your syntax (e.g., use * for multiplication).';
+            errorMsg.style.display = 'block';
+            btn.classList.remove('loading');
+            btn.disabled = false;
+            return;
+          }
+        }
+
+        const samplePoints = [-2, -1, 0, 1, 2];
+        updateTable(exprInput, samplePoints);
+
+        const ctx = document.getElementById('myChart').getContext('2d');
+        if (chart) chart.destroy();
+
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: xValues,
+            datasets: [{
+              label: `y = ${exprInput}`,
+              data: yValues,
+              borderColor: '#10a37f',
+              backgroundColor: 'rgba(16,163,127,0.1)',
+              borderWidth: 2,
+              pointRadius: 1,
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 1.5,
+            scales: {
+              x: { 
+                title: { 
+                  display: true, 
+                  text: 'x', 
+                  color: document.body.classList.contains('dark') ? '#e5e5e5' : '#1f1f1f',
+                  font: { size: 12 }
+                } 
+              },
+              y: { 
+                title: { 
+                  display: true, 
+                  text: 'y', 
+                  color: document.body.classList.contains('dark') ? '#e5e5e5' : '#1f1f1f',
+                  font: { size: 12 }
+                } 
+              }
+            },
+            plugins: {
+              legend: {
+                labels: {
+                  color: document.body.classList.contains('dark') ? '#e5e5e5' : '#1f1f1f',
+                  font: { size: 12 }
+                }
+              },
+              zoom: {
+                pan: {
+                  enabled: true,
+                  mode: 'xy'
+                },
+                zoom: {
+                  wheel: {
+                    enabled: true,
+                    speed: 0.1
+                  },
+                  pinch: {
+                    enabled: true
+                  },
+                  mode: 'xy'
+                }
+              }
+            }
+          }
+        });
+
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }, 100);
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+      if (chart) {
+        chart.options.scales.x.title.color = document.body.classList.contains('dark') ? '#e5e5e5' : '#1f1f1f';
+        chart.options.scales.y.title.color = document.body.classList.contains('dark') ? '#e5e5e5' : '#1f1f1f';
+        chart.options.plugins.legend.labels.color = document.body.classList.contains('dark') ? '#e5e5e5' : '#1f1f1f';
+        chart.update();
+      }
+    }
+
+    // Apply theme on load
+    if (localStorage.getItem('theme') === 'dark') {
+      document.body.classList.add('dark');
+      if (chart) {
+        chart.options.scales.x.title.color = '#e5e5e5';
+        chart.options.scales.y.title.color = '#e5e5e5';
+        chart.options.plugins.legend.labels.color = '#e5e5e5';
+        chart.update();
+      }
+    }
+
+    // Sidebar and Navigation Logic
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('main-content');
+    const menuToggle = document.getElementById('menu-toggle');
+    const sidebarLinks = sidebar.querySelectorAll('a');
+    const plotterContainer = document.getElementById('plotter-container');
+    const aboutContainer = document.getElementById('about-container');
+    const aboutParagraphs = aboutContainer.querySelectorAll('p');
+    const aboutLinks = aboutContainer.querySelectorAll('a');
+
+    // Sidebar Toggle
+    menuToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sidebar.classList.toggle('active');
+      mainContent.classList.toggle('shifted');
+    });
+
+    // Close Sidebar When Clicking Outside
+    document.addEventListener('click', (e) => {
+      const isClickInsideSidebar = sidebar.contains(e.target);
+      const isClickOnMenuToggle = menuToggle.contains(e.target);
+
+      if (!isClickInsideSidebar && !isClickOnMenuToggle && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+        mainContent.classList.remove('shifted');
+      }
+    });
+
+    // Sidebar Navigation
+    sidebarLinks.forEach(link => {
+      if (link.hasAttribute('data-section')) {
+        link.addEventListener('click', (e) => {
+          const section = link.getAttribute('data-section');
+          
+          // If navigating to Home, redirect to root
+          if (section === 'chat') {
+            return; // Let the href handle navigation to "/"
+          }
+
+          e.preventDefault();
+          plotterContainer.classList.remove('active');
+          aboutContainer.classList.remove('active');
+
+          if (section === 'plotter') {
+            plotterContainer.classList.add('active');
+          } else if (section === 'about') {
+            aboutContainer.classList.add('active');
+          }
+
+          if (window.innerWidth <= 400) {
+            sidebar.classList.remove('active');
+            mainContent.classList.remove('shifted');
+          }
+        });
+      }
+    });
+
+    // Apply theme to About Us section
+    function applyThemeToAbout() {
+      const isDark = document.body.classList.contains('dark');
+      aboutParagraphs.forEach(p => p.classList.toggle('dark', isDark));
+      aboutLinks.forEach(a => a.classList.toggle('dark', isDark));
+    }
+
+    // Initial theme application
+    applyThemeToAbout();
+
+    // Update About Us section on theme toggle
+    const originalToggleTheme = toggleTheme;
+    toggleTheme = function() {
+      originalToggleTheme();
+      applyThemeToAbout();
+    };
+
+    // Plot initial graph
+    plotGraph();
+
+    // Adjust layout on virtual keyboard open
+    window.addEventListener('resize', () => {
+      if (document.activeElement.tagName === 'INPUT') {
+        document.querySelector('.input-area').scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+    });
+  </script>
+</body>
+</html>

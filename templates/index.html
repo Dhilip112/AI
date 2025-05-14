@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Doctor Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .sidebar {
+            width: 200px;
+            background-color: #1f2937;
+            color: white;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            padding-top: 20px;
+            transform: translateX(-200px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+        .sidebar.active {
+            transform: translateX(0);
+        }
+        .sidebar a {
+            padding: 10px 20px;
+            display: block;
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+        }
+        .sidebar a:hover {
+            background-color: #374151;
+        }
+        .main-content {
+            flex: 1;
+            margin-left: 0;
+            transition: margin-left 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content.shifted {
+            margin-left: 200px;
+        }
+        .chat-container, .about-container {
+            display: none;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1rem;
+            flex: 1;
+        }
+        .chat-container.active, .about-container.active {
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            max-width: 70%;
+            margin: 0.5rem 0;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            line-height: 1.5;
+        }
+        .message.user {
+            margin-left: auto;
+            background-color: #2563eb;
+            color: white;
+        }
+        .message.ai {
+            margin-right: auto;
+            background-color: #e5e7eb;
+            color: #1f2937;
+        }
+        .message.ai.dark {
+            background-color: #374151;
+            color: #d1d5db;
+        }
+        .input-area {
+            background-color: inherit;
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+        .input-area.dark {
+            border-top: 1px solid #4b5563;
+        }
+        #chat-input {
+            resize: none;
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+            background-color: white;
+            color: #1f2937;
+        }
+        #chat-input.dark {
+            background-color: #1f2937;
+            color: #d1d5db;
+            border: 1px solid #4b5563;
+        }
+        .theme-toggle {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            cursor: pointer;
+        }
+        .menu-toggle {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            cursor: pointer;
+            z-index: 1100;
+        }
+        .image-preview {
+            max-width: 200px;
+            margin: 0.5rem 0;
+            border-radius: 0.5rem;
+        }
+        .model-selection {
+            max-width: 800px;
+            margin: 1rem auto;
+            padding: 0 1rem;
+        }
+        .model-selection label {
+            color: #374151;
+        }
+        .model-selection label.dark {
+            color: #d1d5db;
+        }
+        .model-selection select {
+            background-color: white;
+            color: #1f2937;
+            border: 1px solid #d1d5db;
+        }
+        .model-selection select.dark {
+            background-color: #1f2937;
+            color: #d1d5db;
+            border: 1px solid #4b5563;
+        }
+        .about-container p {
+            color: #374151;
+        }
+        .about-container p.dark {
+            color: #d1d5db;
+        }
+        .about-container a {
+            color: #2563eb;
+        }
+        .about-container a.dark {
+            color: #60a5fa;
+        }
+        @media (max-width: 640px) {
+            .sidebar {
+                width: 200px;
+            }
+            .main-content.shifted {
+                margin-left: 0;
+            }
+            .chat-container {
+                padding: 0.5rem;
+            }
+            .message {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
+    <!-- Menu Toggle -->
+    <div class="menu-toggle" id="menu-toggle" role="button" aria-label="Toggle sidebar">
+        <svg class="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+        </svg>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <a href="#" data-section="chat">Home</a>
+        <a href="/plotter">Graph</a>
+        <a href="#" data-section="about">About Us</a>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="main-content">
+        <!-- Theme Toggle -->
+        <div class="theme-toggle" role="button" aria-label="Toggle theme">
+            <span id="theme-icon" class="text-2xl text-gray-600 dark:text-gray-400">🌙</span>
+        </div>
+
+        <!-- Model Selection -->
+        <div class="model-selection">
+            <label for="model-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Select Model:</label>
+            <select id="model-select" class="mt-1 block w-full p-2 border border-gray-300 rounded-md dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600">
+                <option value="llama">LLaMA</option>
+                <option value="llava">LLaVA</option>
+            </select>
+        </div>
+
+        <!-- Chat Section -->
+        <div class="chat-container active" id="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <div class="message ai dark:bg-gray-700 dark:text-gray-300">
+                    Hello! I'm Mathsmate, your maths chatbot. Upload an image (JPEG/PNG, max 5MB) or ask a question to get started.
+                </div>
+            </div>
+            <!-- Input Area -->
+            <div class="input-area dark:bg-gray-900" id="chat-input-area">
+                <div class="flex items-center max-w-3xl mx-auto space-x-2">
+                    <label for="image-upload" class="cursor-pointer" aria-label="Upload image">
+                        <svg class="w-6 h-6 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </label>
+                    <input type="file" id="image-upload" accept="image/jpeg,image/png" class="hidden" />
+                    <div id="image-preview" class="hidden">
+                        <img id="display-image" src="" alt="Uploaded image" class="image-preview" />
+                    </div>
+                    <textarea id="chat-input" rows="1" placeholder="Ask a question (with or without an image)..." class="dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"></textarea>
+                    <button id="submit-query" class="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Us Section -->
+        <div class="about-container" id="about-container">
+            <h2 class="text-xl font-bold mb-4">About Us</h2>
+            <p class="text-gray-700 dark:text-gray-300">
+                We are the team behind AI-Doctor, a medical chatbot designed to assist users in understanding medical conditions through text and image queries. Our mission is to provide accessible and reliable medical information using advanced AI technology.
+            </p>
+            <p class="text-gray-700 dark:text-gray-300 mt-2">
+                Contact us at: <a href="mailto:support@ai-doctor.com" class="text-blue-600 dark:text-blue-400">support@ai-doctor.com</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatContainer = document.getElementById('chat-container');
+            const aboutContainer = document.getElementById('about-container');
+            const chatInputArea = document.getElementById('chat-input-area');
+            const imageUpload = document.getElementById('image-upload');
+            const displayImage = document.getElementById('display-image');
+            const imagePreview = document.getElementById('image-preview');
+            const chatInput = document.getElementById('chat-input');
+            const submitQuery = document.getElementById('submit-query');
+            const themeIcon = document.getElementById('theme-icon');
+            const modelSelect = document.getElementById('model-select');
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('main-content');
+            const menuToggle = document.getElementById('menu-toggle');
+            const sidebarLinks = sidebar.querySelectorAll('a');
+            const modelSelectLabel = document.querySelector('.model-selection label');
+            const modelSelectInput = document.querySelector('.model-selection select');
+            const aboutParagraphs = document.querySelectorAll('.about-container p');
+            const aboutLinks = document.querySelectorAll('.about-container a');
+            const chatMessages = document.getElementById('chat-messages');
+
+            // Theme Toggle
+            let isDark = localStorage.getItem('theme') === 'dark';
+            applyTheme(isDark);
+
+            themeIcon.addEventListener('click', () => {
+                isDark = !isDark;
+                applyTheme(isDark);
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            });
+
+            function applyTheme(dark) {
+                document.body.classList.toggle('dark', dark);
+                chatInput.classList.toggle('dark', dark);
+                chatInputArea.classList.toggle('dark', dark);
+                document.querySelectorAll('.message.ai').forEach(el => el.classList.toggle('dark', dark));
+                themeIcon.textContent = dark ? '☀️' : '🌙';
+                modelSelectLabel.classList.toggle('dark', dark);
+                modelSelectInput.classList.toggle('dark', dark);
+                aboutParagraphs.forEach(p => p.classList.toggle('dark', dark));
+                aboutLinks.forEach(a => a.classList.toggle('dark', dark));
+            }
+
+            // Sidebar Toggle
+            menuToggle.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent the click from bubbling up to the document
+                sidebar.classList.toggle('active');
+                mainContent.classList.toggle('shifted');
+            });
+
+            // Close Sidebar When Clicking Outside
+            document.addEventListener('click', (e) => {
+                const isClickInsideSidebar = sidebar.contains(e.target);
+                const isClickOnMenuToggle = menuToggle.contains(e.target);
+
+                if (!isClickInsideSidebar && !isClickOnMenuToggle && sidebar.classList.contains('active')) {
+                    sidebar.classList.remove('active');
+                    mainContent.classList.remove('shifted');
+                }
+            });
+
+            // Sidebar Navigation
+            sidebarLinks.forEach(link => {
+                if (link.hasAttribute('data-section')) {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const section = link.getAttribute('data-section');
+                        chatContainer.classList.remove('active');
+                        aboutContainer.classList.remove('active');
+                        chatInputArea.style.display = 'none';
+
+                        if (section === 'chat') {
+                            chatContainer.classList.add('active');
+                            chatInputArea.style.display = 'block';
+                        } else if (section === 'about') {
+                            aboutContainer.classList.add('active');
+                        }
+
+                        if (window.innerWidth <= 640) {
+                            sidebar.classList.remove('active');
+                            mainContent.classList.remove('shifted');
+                        }
+                    });
+                }
+            });
+
+            // Auto-resize textarea
+            chatInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = `${this.scrollHeight}px`;
+            });
+
+            // Display uploaded image
+            imageUpload.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    if (!file.type.startsWith('image/')) {
+                        showMessage('Please upload a valid JPEG or PNG image.', 'ai', true);
+                        imageUpload.value = '';
+                        return;
+                    }
+                    if (file.size > 5 * 1024 * 1024) {
+                        showMessage('Image size exceeds 5MB limit.', 'ai', true);
+                        imageUpload.value = '';
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        displayImage.src = e.target.result;
+                        imagePreview.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    imagePreview.classList.add('hidden');
+                }
+            });
+
+            // Submit Query
+            submitQuery.addEventListener('click', async () => {
+                const image = imageUpload.files[0];
+                const query = chatInput.value.trim();
+                const selectedModel = modelSelect.value;
+
+                if (!query) {
+                    showMessage('Please enter a query.', 'ai', true);
+                    return;
+                }
+
+                // Show user message and image (if uploaded)
+                showMessage(query, 'user');
+                if (image) {
+                    const imgElement = document.createElement('img');
+                    imgElement.src = displayImage.src;
+                    imgElement.className = 'image-preview';
+                    const userMessage = document.createElement('div');
+                    userMessage.className = 'message user';
+                    userMessage.appendChild(imgElement);
+                    chatMessages.appendChild(userMessage);
+                }
+
+                const formData = new FormData();
+                formData.append('query', query);
+                formData.append('model', selectedModel);
+                if (image) {
+                    formData.append('image', image);
+                }
+
+                try {
+                    submitQuery.disabled = true;
+                    submitQuery.innerHTML = `
+                        <svg class="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 018-8v2a6 6 0 00-6 6h-2zm16 0a8 8 0 01-8 8v-2a6 6 0 006-6h2z"></path>
+                        </svg>
+                    `;
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                    const response = await fetch('/upload_and_query', {
+                        method: 'POST',
+                        body: formData,
+                        signal: controller.signal
+                    });
+
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        const errorDetail = await response.text();
+                        throw new Error(`Server error: ${response.status} - ${errorDetail}`);
+                    }
+
+                    const result = await response.json();
+
+                    if (!result.response) {
+                        throw new Error('Unexpected response format from server: missing "response" field.');
+                    }
+
+                    const modelLabel = selectedModel === 'llama' ? 'LLaMA' : 'LLaVA';
+                    const sanitizedResponse = DOMPurify.sanitize(marked.parse(result.response));
+                    showMessage(`<strong>${modelLabel} Response:</strong><br>${sanitizedResponse}`, 'ai');
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        showMessage('Error: Request timed out after 30 seconds. Please try again.', 'ai', true);
+                    } else {
+                        showMessage(`Error: ${error.message}`, 'ai', true);
+                    }
+                } finally {
+                    submitQuery.disabled = false;
+                    submitQuery.innerHTML = `
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
+                    `;
+                    chatInput.value = '';
+                    imageUpload.value = '';
+                    imagePreview.classList.add('hidden');
+                    chatInput.style.height = 'auto';
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            });
+
+            // Submit on Enter (without Shift)
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submitQuery.click();
+                }
+            });
+
+            function showMessage(text, type, isError = false) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type} ${isDark ? 'dark' : ''}`;
+                if (isError) {
+                    messageDiv.style.backgroundColor = '#ef4444';
+                    messageDiv.style.color = 'white';
+                }
+                messageDiv.innerHTML = text;
+                chatMessages.appendChild(messageDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        });
+    </script>
+</body>
+</html>
